@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../services/room_service.dart';
+import '../theme/app_theme.dart';
+import 'game_dashboard_screen.dart';
 import 'join_room_screen.dart';
-import 'lobby_screen.dart';
+import 'local_lobby_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,8 +14,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _nameController = TextEditingController();
-  var _isCreating = false;
-  String? _createStatus;
 
   @override
   void dispose() {
@@ -22,110 +21,130 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _createRoom() async {
-    setState(() {
-      _isCreating = true;
-      _createStatus = 'Creating room...';
-    });
-    try {
-      final roomCode = await RoomService().createRoom(_nameController.text);
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => LobbyScreen(roomCode: roomCode)),
-      );
-    } catch (error) {
-      if (mounted) {
-        _showError(error.toString());
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isCreating = false;
-          _createStatus = null;
-        });
-      }
-    }
-  }
-
-  void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+  void _openGameDashboard() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GameDashboardScreen(playerName: _nameController.text),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'YoniGames',
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      color: const Color(0xFF163B35),
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Social games for one couch, many phones, and no overthinking.',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 32),
-                  TextField(
-                    controller: _nameController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Your name',
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => _createRoom(),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _isCreating ? null : _createRoom,
-                    icon: _isCreating
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.add),
-                    label: const Text('Create room'),
-                  ),
-                  if (_createStatus != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _createStatus!,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              JoinRoomScreen(initialName: _nameController.text),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.login),
-                    label: const Text('Join with code'),
-                  ),
-                ],
+    return GameShell(
+      maxWidth: 500,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const IconBadge(),
+          const SizedBox(height: 18),
+          Text(
+            'YoniGames',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.displaySmall,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Couch-party games for many phones and one shared laugh.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 22),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: const [
+              AccentPill(icon: Icons.groups, label: 'Room play'),
+              AccentPill(
+                icon: Icons.bolt,
+                label: 'Fast rounds',
+                color: AppColors.coral,
               ),
+              AccentPill(
+                icon: Icons.emoji_events,
+                label: 'Live scores',
+                color: AppColors.sky,
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          GamePanel(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _nameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Your name',
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  onSubmitted: (_) => _openGameDashboard(),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _openGameDashboard,
+                  icon: const Icon(Icons.dashboard_customize),
+                  label: const Text('Create room'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            JoinRoomScreen(initialName: _nameController.text),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.login),
+                  label: const Text('Join with code'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const LocalLobbyScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.phone_android),
+                  label: const Text('Local play'),
+                ),
+              ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class IconBadge extends StatelessWidget {
+  const IconBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.center,
+      child: Container(
+        width: 86,
+        height: 86,
+        decoration: BoxDecoration(
+          color: AppColors.ink,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.coral.withValues(alpha: 0.34),
+              blurRadius: 26,
+              offset: const Offset(0, 14),
+            ),
+          ],
         ),
+        child: const Icon(Icons.casino, color: AppColors.gold, size: 42),
       ),
     );
   }
