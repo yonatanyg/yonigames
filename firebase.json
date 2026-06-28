@@ -1,0 +1,28 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "yonigames-30515",
+          "appId": "1:845944344196:android:66cb21e1038a6edc05bcd1",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "yonigames-30515",
+          "configurations": {
+            "android": "1:845944344196:android:66cb21e1038a6edc05bcd1",
+            "ios": "1:845944344196:ios:2a3e8f747c31674305bcd1",
+            "macos": "1:845944344196:ios:2a3e8f747c31674305bcd1",
+            "web": "1:845944344196:web:3dcbfe99872b1a5805bcd1",
+            "windows": "1:845944344196:web:6b3d3ef0777a2bf305bcd1"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

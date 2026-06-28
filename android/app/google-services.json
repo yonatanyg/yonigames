@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "845944344196",
+    "project_id": "yonigames-30515",
+    "storage_bucket": "yonigames-30515.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:845944344196:android:66cb21e1038a6edc05bcd1",
+        "android_client_info": {
+          "package_name": "com.example.yonigames_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABQQoXx7fiIcWpZ-Uohuo2TgAtSOjxrTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
