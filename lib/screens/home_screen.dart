@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../localization/app_language.dart';
 import '../theme/app_theme.dart';
 import 'game_dashboard_screen.dart';
 import 'join_room_screen.dart';
@@ -24,19 +25,24 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openGameDashboard() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => GameDashboardScreen(playerName: _nameController.text),
+        builder: (_) => GameDashboardScreen(
+          playerName: _nameController.text,
+          initialLanguageCode: AppLanguageScope.of(context).language.code,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final copy = HomeCopy.of(context);
     return GameShell(
       maxWidth: 500,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           const Positioned(top: 0, right: 0, child: _ThemeMenuButton()),
+          const Positioned(top: 0, left: 0, child: _LanguageMenuButton()),
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -49,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Couch-party games for many phones and one shared laugh.',
+                copy.tagline,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
@@ -58,16 +64,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 alignment: WrapAlignment.center,
                 spacing: 8,
                 runSpacing: 8,
-                children: const [
-                  AccentPill(icon: Icons.groups, label: 'Room play'),
+                children: [
+                  AccentPill(icon: Icons.groups, label: copy.roomPlay),
                   AccentPill(
                     icon: Icons.bolt,
-                    label: 'Fast rounds',
+                    label: copy.fastRounds,
                     color: AppColors.coral,
                   ),
                   AccentPill(
                     icon: Icons.emoji_events,
-                    label: 'Live scores',
+                    label: copy.liveScores,
                     color: AppColors.sky,
                   ),
                 ],
@@ -81,9 +87,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     TextField(
                       controller: _nameController,
                       textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Your name',
-                        prefixIcon: Icon(Icons.person),
+                      decoration: InputDecoration(
+                        labelText: copy.nameLabel,
+                        prefixIcon: const Icon(Icons.person),
                       ),
                       onSubmitted: (_) => _openGameDashboard(),
                     ),
@@ -91,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     FilledButton.icon(
                       onPressed: _openGameDashboard,
                       icon: const Icon(Icons.dashboard_customize),
-                      label: const Text('Create room'),
+                      label: Text(copy.createRoom),
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
@@ -105,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                       icon: const Icon(Icons.login),
-                      label: const Text('Join with code'),
+                      label: Text(copy.joinWithCode),
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
@@ -117,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                       icon: const Icon(Icons.phone_android),
-                      label: const Text('Local play'),
+                      label: Text(copy.localPlay),
                     ),
                   ],
                 ),
@@ -166,9 +172,10 @@ class _ThemeMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeScope = AppThemeScope.of(context);
     final palette = AppPalette.of(context);
+    final copy = HomeCopy.of(context);
 
     return PopupMenuButton<AppThemeOption>(
-      tooltip: 'Theme',
+      tooltip: copy.themeTooltip,
       icon: Icon(Icons.palette, color: palette.ink),
       color: palette.paper,
       elevation: 10,
@@ -181,6 +188,47 @@ class _ThemeMenuButton extends StatelessWidget {
             child: _ThemeMenuRow(
               option: option,
               selected: option == themeScope.option,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _LanguageMenuButton extends StatelessWidget {
+  const _LanguageMenuButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final languageScope = AppLanguageScope.of(context);
+    final palette = AppPalette.of(context);
+    final copy = HomeCopy.of(context);
+
+    return PopupMenuButton<GameLanguage>(
+      tooltip: copy.languageTooltip,
+      icon: Icon(Icons.language, color: palette.ink),
+      color: palette.paper,
+      elevation: 10,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      onSelected: languageScope.onLanguageChanged,
+      itemBuilder: (context) => [
+        for (final language in GameLanguage.all)
+          PopupMenuItem(
+            value: language,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    language.nativeName,
+                    style: TextStyle(
+                      color: palette.ink,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (language.code == languageScope.language.code)
+                  Icon(Icons.check_circle, color: palette.coral, size: 18),
+              ],
             ),
           ),
       ],

@@ -38,13 +38,16 @@ class GameSessionFactory {
       'round': 1,
       'durationSeconds': durationSeconds,
       'startedAt': Timestamp.fromDate(now),
-      'endsAt': game.usesTimer
+      'endsAt': game.usesTimer && durationSeconds > 0
           ? Timestamp.fromDate(now.add(Duration(seconds: durationSeconds)))
           : null,
     };
 
     if (game.id == GameIds.outOfTheLoop) {
       sessionData.addAll(_createOutOfTheLoopData(room, words[wordIndex]));
+    }
+    if (game.id == GameIds.codenames) {
+      sessionData.addAll(_createCodenamesData(room, now));
     }
 
     return sessionData;
@@ -72,10 +75,69 @@ class GameSessionFactory {
     final focusIndex = _random.nextInt(players.length);
 
     switch (game.roleStrategy) {
+      case GameRoleStrategy.none:
       case GameRoleStrategy.oneGuesser:
       case GameRoleStrategy.oneOutOfTheLoop:
         return players[focusIndex];
     }
+  }
+
+  Map<String, dynamic> _createCodenamesData(GameRoom room, DateTime now) {
+    final firstTeam = _random.nextBool()
+        ? CodenamesTeam.red
+        : CodenamesTeam.blue;
+    final secondTeam = firstTeam == CodenamesTeam.red
+        ? CodenamesTeam.blue
+        : CodenamesTeam.red;
+    final words = [...CodenamesWords.allFor(languageCode: room.languageCode)]
+      ..shuffle(_random);
+    final cardTypes = [
+      ...List.filled(
+        9,
+        firstTeam == CodenamesTeam.red
+            ? CodenamesCardType.red
+            : CodenamesCardType.blue,
+      ),
+      ...List.filled(
+        8,
+        secondTeam == CodenamesTeam.red
+            ? CodenamesCardType.red
+            : CodenamesCardType.blue,
+      ),
+      CodenamesCardType.black,
+      ...List.filled(7, CodenamesCardType.neutral),
+    ]..shuffle(_random);
+
+    final cards = List.generate(
+      25,
+      (index) => CodenamesCard(
+        word: words[index],
+        type: cardTypes[index],
+        revealed: false,
+      ).toMap(),
+    );
+
+    return {
+      'codenamesPhase': CodenamesPhase.clue.name,
+      'codenamesCurrentTeam': firstTeam.name,
+      'codenamesFirstTeam': firstTeam.name,
+      'codenamesCards': cards,
+      'codenamesRedRemaining': firstTeam == CodenamesTeam.red ? 9 : 8,
+      'codenamesBlueRemaining': firstTeam == CodenamesTeam.blue ? 9 : 8,
+      'codenamesClue': '',
+      'codenamesClueNumber': 0,
+      'codenamesGuessesTaken': 0,
+      'codenamesHinterSeconds': room.codenamesHinterSeconds,
+      'codenamesGuesserSeconds': room.codenamesGuesserSeconds,
+      'codenamesTurnEndsAt': _turnEndsAt(now, room.codenamesHinterSeconds),
+    };
+  }
+
+  Timestamp? _turnEndsAt(DateTime now, int seconds) {
+    if (seconds <= 0) {
+      return null;
+    }
+    return Timestamp.fromDate(now.add(Duration(seconds: seconds)));
   }
 
   Map<String, dynamic> _createOutOfTheLoopData(
@@ -85,7 +147,10 @@ class GameSessionFactory {
     final questionOrder = room.players.map((player) => player.id).toList()
       ..shuffle(_random);
     final questionBucket = [
-      ...OutOfTheLoopQuestions.forCategory(room.categoryId),
+      ...OutOfTheLoopQuestions.forCategory(
+        room.categoryId,
+        languageCode: room.languageCode,
+      ),
     ]..shuffle(_random);
     final questions = List.generate(
       questionOrder.length,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../localization/app_language.dart';
 import '../models/game_definition.dart';
 import '../models/model.dart';
 import '../models/player.dart';
@@ -68,6 +69,22 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
+  Future<void> _updateLanguage(
+    BuildContext context,
+    String languageCode,
+  ) async {
+    try {
+      await _roomService.updateLanguage(
+        roomCode: widget.roomCode,
+        languageCode: languageCode,
+      );
+    } catch (error) {
+      if (context.mounted) {
+        _showError(context, error.toString());
+      }
+    }
+  }
+
   Future<void> _updateSelectedGame(BuildContext context, String gameId) async {
     try {
       await _roomService.updateSelectedGame(
@@ -83,8 +100,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   Future<void> _saveManualDeck(BuildContext context) async {
     final words = WordDecks.parseManualWords(_manualDeckController.text);
+    final copy = AppCopy.of(context);
     if (words.isEmpty) {
-      _showError(context, 'Add at least one word.');
+      _showError(context, copy.addAtLeastOneWord);
       return;
     }
 
@@ -127,6 +145,24 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
+  Future<void> _updateTimerSetting(
+    BuildContext context,
+    String settingKey,
+    int durationSeconds,
+  ) async {
+    try {
+      await _roomService.updateTimerSetting(
+        roomCode: widget.roomCode,
+        settingKey: settingKey,
+        durationSeconds: durationSeconds,
+      );
+    } catch (error) {
+      if (context.mounted) {
+        _showError(context, error.toString());
+      }
+    }
+  }
+
   Future<void> _updatePlayerRole(BuildContext context, String roleId) async {
     try {
       await _roomService.updatePlayerRole(
@@ -159,7 +195,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
           return _StatusScaffold(message: snapshot.error.toString());
         }
         if (!snapshot.hasData) {
-          return const _StatusScaffold(message: 'Loading lobby...');
+          return _StatusScaffold(message: AppCopy.of(context).loadingLobby);
         }
 
         final room = snapshot.data!;
@@ -173,13 +209,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
         }
 
         final currentPlayerId = _roomService.currentPlayerId;
+        final copy = AppCopy.of(context);
         final isHost = currentPlayerId == room.hostId;
         final selectedGame = room.selectedGame;
         final isManualDeck = room.deckId == WordDecks.manualDeckId;
         final selectedDeck = isManualDeck
             ? null
-            : WordDecks.byId(room.deckId, catalog: selectedGame.deckCatalog);
-        final selectedCategory = WordCategories.byId(room.categoryId);
+            : WordDecks.byId(
+                room.deckId,
+                catalog: selectedGame.deckCatalog,
+                languageCode: room.languageCode,
+              );
+        final selectedCategory = WordCategories.byId(
+          room.categoryId,
+          languageCode: room.languageCode,
+        );
         final canStart =
             room.players.length >= selectedGame.minPlayers &&
             room.hasRequiredRoles &&
@@ -188,7 +232,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 room.customWords.isNotEmpty);
 
         return GameShell(
-          appBar: AppBar(title: const Text('Lobby')),
+          appBar: AppBar(title: Text(copy.lobby)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -204,7 +248,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 game: selectedGame,
                 selectedDeck: selectedDeck,
                 selectedCategory: selectedCategory,
+                languageCode: room.languageCode,
                 durationSeconds: room.durationSeconds,
+                settings: room.settings,
                 isHost: isHost,
                 manualWordCount: room.customWords.length,
                 manualController: _manualDeckController,
@@ -212,8 +258,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 onDeckChanged: (deckId) => _updateDeck(context, deckId),
                 onCategoryChanged: (categoryId) =>
                     _updateCategory(context, categoryId),
+                onLanguageChanged: (languageCode) =>
+                    _updateLanguage(context, languageCode),
                 onDurationChanged: (durationSeconds) =>
                     _updateDuration(context, durationSeconds),
+                onTimerChanged: (settingKey, durationSeconds) =>
+                    _updateTimerSetting(context, settingKey, durationSeconds),
                 onSaveManualDeck: () => _saveManualDeck(context),
               ),
               const SizedBox(height: 24),
@@ -231,22 +281,22 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 FilledButton.icon(
                   onPressed: canStart ? () => _startGame(context) : null,
                   icon: const Icon(Icons.play_arrow),
-                  label: const Text('Start game'),
+                  label: Text(copy.startGame),
                 )
               else
-                const GamePanel(
+                GamePanel(
                   child: Row(
                     children: [
-                      Icon(Icons.hourglass_top, color: AppColors.deepTeal),
-                      SizedBox(width: 12),
-                      Expanded(child: Text('Waiting for the host to start...')),
+                      const Icon(Icons.hourglass_top, color: AppColors.deepTeal),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(copy.waitingForHost)),
                     ],
                   ),
                 ),
               if (isHost && room.players.length < selectedGame.minPlayers) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Need at least ${selectedGame.minPlayers} players.',
+                  copy.minPlayers(selectedGame.minPlayers),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -254,7 +304,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               if (isHost && !room.hasRequiredRoles) ...[
                 const SizedBox(height: 8),
                 Text(
-                  _missingRoleText(room),
+                  _missingRoleText(context, room),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -265,7 +315,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   room.customWords.isEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Add words before starting.',
+                  copy.addWordsBeforeStarting,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -291,6 +341,7 @@ class _GameSelectorPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     return GamePanel(
       child: Row(
         children: [
@@ -307,22 +358,22 @@ class _GameSelectorPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Game', style: Theme.of(context).textTheme.labelLarge),
+                Text(copy.game, style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 if (isHost)
                   DropdownButtonFormField<String>(
                     isExpanded: true,
                     initialValue: selectedGame.id,
-                    decoration: const InputDecoration(
-                      labelText: 'Selected game',
-                      prefixIcon: Icon(Icons.casino),
+                    decoration: InputDecoration(
+                      labelText: copy.selectedGame,
+                      prefixIcon: const Icon(Icons.casino),
                     ),
                     items: [
                       for (final game in GameCatalog.all)
                         DropdownMenuItem(
                           value: game.id,
                           child: Text(
-                            game.name,
+                            copy.gameName(game.id),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -335,12 +386,12 @@ class _GameSelectorPanel extends StatelessWidget {
                   )
                 else
                   Text(
-                    selectedGame.name,
+                    copy.gameName(selectedGame.id),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 const SizedBox(height: 8),
                 Text(
-                  selectedGame.lobbyDescription,
+                  copy.gameLobbyDescription(selectedGame.id),
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
@@ -359,6 +410,7 @@ class _RoomCodePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -375,9 +427,9 @@ class _RoomCodePanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AccentPill(
+          AccentPill(
             icon: Icons.ios_share,
-            label: 'Share this code',
+            label: copy.shareThisCode,
             color: AppColors.gold,
           ),
           const SizedBox(height: 12),
@@ -400,34 +452,43 @@ class _GameSettingsPanel extends StatelessWidget {
     required this.game,
     required this.selectedDeck,
     required this.selectedCategory,
+    required this.languageCode,
     required this.durationSeconds,
+    required this.settings,
     required this.isHost,
     required this.manualWordCount,
     required this.manualController,
     required this.isSaving,
     required this.onDeckChanged,
     required this.onCategoryChanged,
+    required this.onLanguageChanged,
     required this.onDurationChanged,
+    required this.onTimerChanged,
     required this.onSaveManualDeck,
   });
 
   final GameDefinition game;
   final WordDeck? selectedDeck;
   final WordCategory selectedCategory;
+  final String languageCode;
   final int durationSeconds;
+  final Map<String, dynamic> settings;
   final bool isHost;
   final int manualWordCount;
   final TextEditingController manualController;
   final bool isSaving;
   final ValueChanged<String> onDeckChanged;
   final ValueChanged<String> onCategoryChanged;
+  final ValueChanged<String> onLanguageChanged;
   final ValueChanged<int> onDurationChanged;
+  final void Function(String settingKey, int durationSeconds) onTimerChanged;
   final VoidCallback onSaveManualDeck;
 
   static const _durationOptions = [30, 45, 60, 90, 120, 180, 300];
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     return GamePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -437,18 +498,53 @@ class _GameSettingsPanel extends StatelessWidget {
               const Icon(Icons.tune, color: AppColors.deepTeal),
               const SizedBox(width: 10),
               Text(
-                'Game settings',
+                copy.gameSettings,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ],
           ),
           const SizedBox(height: 12),
+          _buildLanguageSetting(context),
+          if (game.settings.isNotEmpty) const SizedBox(height: 12),
           for (final entry in game.settings.indexed) ...[
             if (entry.$1 > 0) const SizedBox(height: 12),
             _buildSetting(context, entry.$2),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildLanguageSetting(BuildContext context) {
+    final copy = AppCopy.of(context);
+    final selectedLanguage = GameLanguage.byCode(languageCode);
+    if (!isHost) {
+      return _ReadonlySetting(
+        icon: Icons.language,
+        label: copy.language,
+        value: selectedLanguage.nativeName,
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      isExpanded: true,
+      initialValue: selectedLanguage.code,
+      decoration: InputDecoration(
+        labelText: copy.language,
+        prefixIcon: const Icon(Icons.language),
+      ),
+      items: [
+        for (final language in GameLanguage.all)
+          DropdownMenuItem(
+            value: language.code,
+            child: Text(language.nativeName, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onChanged: (value) {
+        if (value != null && value != selectedLanguage.code) {
+          onLanguageChanged(value);
+        }
+      },
     );
   }
 
@@ -467,9 +563,10 @@ class _GameSettingsPanel extends StatelessWidget {
     BuildContext context,
     GameSettingDefinition setting,
   ) {
-    final deckName = selectedDeck?.name ?? 'Manual deck';
+    final copy = AppCopy.of(context);
+    final deckName = selectedDeck?.name ?? copy.manualDeck;
     final deckDescription =
-        selectedDeck?.description ?? '$manualWordCount saved words.';
+        selectedDeck?.description ?? copy.manualWordCount(manualWordCount);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -479,18 +576,21 @@ class _GameSettingsPanel extends StatelessWidget {
             isExpanded: true,
             initialValue: selectedDeck?.id ?? WordDecks.manualDeckId,
             decoration: InputDecoration(
-              labelText: setting.label,
+              labelText: copy.settingLabel(setting.key),
               prefixIcon: const Icon(Icons.library_books),
             ),
             items: [
-              for (final deck in WordDecks.allFor(game.deckCatalog))
+              for (final deck in WordDecks.allFor(
+                game.deckCatalog,
+                languageCode: languageCode,
+              ))
                 DropdownMenuItem(
                   value: deck.id,
                   child: Text(deck.name, overflow: TextOverflow.ellipsis),
                 ),
-              const DropdownMenuItem(
+              DropdownMenuItem(
                 value: WordDecks.manualDeckId,
-                child: Text('Manual deck', overflow: TextOverflow.ellipsis),
+                child: Text(copy.manualDeck, overflow: TextOverflow.ellipsis),
               ),
             ],
             onChanged: (deckId) {
@@ -509,7 +609,7 @@ class _GameSettingsPanel extends StatelessWidget {
         else
           _ReadonlySetting(
             icon: Icons.library_books,
-            label: setting.label,
+            label: copy.settingLabel(setting.key),
             value: deckName,
             description: deckDescription,
           ),
@@ -522,10 +622,10 @@ class _GameSettingsPanel extends StatelessWidget {
             minLines: 4,
             maxLines: 7,
             textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Manual words',
+            decoration: InputDecoration(
+              labelText: copy.manualWords,
               alignLabelWithHint: true,
-              prefixIcon: Icon(Icons.edit_note),
+              prefixIcon: const Icon(Icons.edit_note),
             ),
           ),
           const SizedBox(height: 12),
@@ -537,7 +637,7 @@ class _GameSettingsPanel extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.save),
-            label: const Text('Save manual deck'),
+            label: Text(copy.saveManualDeck),
           ),
         ],
       ],
@@ -549,9 +649,10 @@ class _GameSettingsPanel extends StatelessWidget {
     GameSettingDefinition setting,
   ) {
     if (!isHost) {
+      final copy = AppCopy.of(context);
       return _ReadonlySetting(
         icon: Icons.category,
-        label: setting.label,
+        label: copy.settingLabel(setting.key),
         value: selectedCategory.name,
         description: selectedCategory.description,
       );
@@ -564,11 +665,13 @@ class _GameSettingsPanel extends StatelessWidget {
           isExpanded: true,
           initialValue: selectedCategory.id,
           decoration: InputDecoration(
-            labelText: setting.label,
+            labelText: AppCopy.of(context).settingLabel(setting.key),
             prefixIcon: const Icon(Icons.category),
           ),
           items: [
-            for (final category in WordCategories.all)
+            for (final category in WordCategories.allFor(
+              languageCode: languageCode,
+            ))
               DropdownMenuItem(
                 value: category.id,
                 child: Text(category.name, overflow: TextOverflow.ellipsis),
@@ -593,21 +696,30 @@ class _GameSettingsPanel extends StatelessWidget {
     BuildContext context,
     GameSettingDefinition setting,
   ) {
-    final options = {..._durationOptions, durationSeconds}.toList()..sort();
+    final selectedDuration =
+        settings[setting.key] as int? ??
+        setting.defaultValue ??
+        durationSeconds;
+    final options = {
+      if (setting.allowsOff) 0,
+      ..._durationOptions,
+      selectedDuration,
+    }.toList()..sort();
 
     if (!isHost) {
+      final copy = AppCopy.of(context);
       return _ReadonlySetting(
         icon: Icons.timer,
-        label: setting.label,
-        value: _formatDuration(durationSeconds),
+        label: copy.settingLabel(setting.key),
+        value: _formatDuration(context, selectedDuration),
       );
     }
 
     return DropdownButtonFormField<int>(
       isExpanded: true,
-      initialValue: durationSeconds,
+      initialValue: selectedDuration,
       decoration: InputDecoration(
-        labelText: setting.label,
+        labelText: AppCopy.of(context).settingLabel(setting.key),
         prefixIcon: const Icon(Icons.hourglass_bottom),
       ),
       items: [
@@ -615,20 +727,27 @@ class _GameSettingsPanel extends StatelessWidget {
           DropdownMenuItem(
             value: option,
             child: Text(
-              _formatDuration(option),
+              _formatDuration(context, option),
               overflow: TextOverflow.ellipsis,
             ),
           ),
       ],
       onChanged: (value) {
-        if (value != null && value != durationSeconds) {
-          onDurationChanged(value);
+        if (value != null && value != selectedDuration) {
+          if (setting.key == GameSettingKeys.durationSeconds) {
+            onDurationChanged(value);
+            return;
+          }
+          onTimerChanged(setting.key, value);
         }
       },
     );
   }
 
-  static String _formatDuration(int seconds) {
+  static String _formatDuration(BuildContext context, int seconds) {
+    if (seconds == 0) {
+      return AppCopy.of(context).off;
+    }
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
     if (minutes == 0) {
@@ -703,6 +822,7 @@ class _RoleBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     return GamePanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -713,13 +833,13 @@ class _RoleBoard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Roles (${players.length})',
+                  copy.rolesCount(players.length),
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
               if (isHost && game.playerRoles.length > 1)
                 IconButton.filledTonal(
-                  tooltip: 'Randomize roles',
+                  tooltip: copy.randomizeRoles,
                   onPressed: onRandomize,
                   icon: const Icon(Icons.shuffle),
                 ),
@@ -781,6 +901,7 @@ class _RoleBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     final roleColor = Color(role.colorValue);
     final isCurrentRole = members.any((player) => player.id == currentPlayerId);
     final isFull = !role.hasOpenSpot(count);
@@ -824,7 +945,7 @@ class _RoleBox extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      role.name,
+                      copy.roleName(role.id),
                       style: Theme.of(context).textTheme.titleMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -834,7 +955,7 @@ class _RoleBox extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                role.description,
+                copy.roleDescription(role.id),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
@@ -842,7 +963,9 @@ class _RoleBox extends StatelessWidget {
               const SizedBox(height: 12),
               if (members.isEmpty)
                 Text(
-                  isFull ? 'Full' : 'Open spot',
+                  isFull
+                      ? (copy.isHebrew ? 'מלא' : 'Full')
+                      : (copy.isHebrew ? 'מקום פנוי' : 'Open spot'),
                   style: Theme.of(context).textTheme.labelLarge,
                 )
               else
@@ -898,6 +1021,7 @@ class _MemberChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     return Chip(
       avatar: CircleAvatar(
         child: Text(
@@ -905,7 +1029,9 @@ class _MemberChip extends StatelessWidget {
         ),
       ),
       label: Text(
-        isCurrentPlayer ? '${player.name} (You)' : player.name,
+        isCurrentPlayer
+            ? (copy.isHebrew ? '${player.name} (אתה)' : '${player.name} (You)')
+            : player.name,
         overflow: TextOverflow.ellipsis,
       ),
       side: BorderSide(color: AppColors.ink.withValues(alpha: 0.08)),
@@ -913,14 +1039,17 @@ class _MemberChip extends StatelessWidget {
   }
 }
 
-String _missingRoleText(GameRoom room) {
+String _missingRoleText(BuildContext context, GameRoom room) {
+  final copy = AppCopy.of(context);
   final parts = room.unmetRoleRequirements
       .map((role) {
         final count = room.roleCounts[role.id] ?? 0;
-        return '${role.name} $count/${role.minPlayers}';
+        return '${copy.roleName(role.id)} $count/${role.minPlayers}';
       })
       .join(', ');
-  return 'Fill required roles: $parts.';
+  return copy.isHebrew
+      ? 'מלא תפקידים נדרשים: $parts.'
+      : 'Fill required roles: $parts.';
 }
 
 class _StatusScaffold extends StatelessWidget {

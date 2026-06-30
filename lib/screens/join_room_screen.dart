@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../localization/app_language.dart';
 import '../services/room_service.dart';
 import '../theme/app_theme.dart';
 import 'lobby_screen.dart';
@@ -35,14 +36,15 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
 
   Future<void> _joinRoom() async {
     final roomCode = _roomCodeController.text.trim().toUpperCase();
+    final copy = AppCopy.of(context);
     if (roomCode.isEmpty) {
-      _showError('Enter a room code.');
+      _showError(copy.enterRoomCode);
       return;
     }
 
     setState(() {
       _isJoining = true;
-      _joinStatus = 'Joining room...';
+      _joinStatus = copy.joiningRoom;
     });
     try {
       await _roomService.joinRoom(
@@ -77,25 +79,26 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     return GameShell(
-      appBar: AppBar(title: const Text('Join room')),
+      appBar: AppBar(title: Text(copy.joinRoom)),
       maxWidth: 500,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AccentPill(
+          AccentPill(
             icon: Icons.vpn_key,
-            label: 'Room code required',
+            label: copy.roomCodeRequired,
             color: AppColors.gold,
           ),
           const SizedBox(height: 16),
           Text(
-            'Hop into the lobby',
+            copy.hopIntoLobby,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
           Text(
-            'Enter the code on the host screen and pick the name your friends will see.',
+            copy.joinInstructions,
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 22),
@@ -108,9 +111,9 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
                   controller: _roomCodeController,
                   autofocus: true,
                   textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: 'Room code',
-                    prefixIcon: Icon(Icons.tag),
+                  decoration: InputDecoration(
+                    labelText: copy.roomCode,
+                    prefixIcon: const Icon(Icons.tag),
                   ),
                   onSubmitted: (_) => _joinRoom(),
                 ),
@@ -118,9 +121,9 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
                 TextField(
                   controller: _nameController,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Your name',
-                    prefixIcon: Icon(Icons.person),
+                  decoration: InputDecoration(
+                    labelText: copy.yourName,
+                    prefixIcon: const Icon(Icons.person),
                   ),
                   onSubmitted: (_) => _joinRoom(),
                 ),
@@ -133,7 +136,7 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.login),
-                  label: const Text('Join lobby'),
+                  label: Text(copy.joinLobby),
                 ),
                 if (_joinStatus != null) ...[
                   const SizedBox(height: 8),

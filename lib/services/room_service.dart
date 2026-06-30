@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../localization/app_language.dart';
 import '../models/game_definition.dart';
 import '../models/model.dart';
 import '../models/player.dart';
@@ -45,11 +46,16 @@ class RoomService {
     return _roomRef(roomCode).snapshots().map(GameRoom.fromSnapshot);
   }
 
-  Future<String> createRoom(String playerName, {String? selectedGameId}) async {
+  Future<String> createRoom(
+    String playerName, {
+    String? selectedGameId,
+    String languageCode = GameLanguage.defaultCode,
+  }) async {
     final playerId = await ensurePlayerId();
     final trimmedName = _cleanName(playerName);
     final selectedGame = GameCatalog.byId(selectedGameId);
     final defaultDeckId = WordDecks.defaultDeckIdFor(selectedGame.deckCatalog);
+    final language = GameLanguage.byCode(languageCode);
     final roleId = selectedGame.roleIdToMeetDemand(const {});
     final hostData = <String, dynamic>{
       'name': trimmedName,
@@ -76,10 +82,14 @@ class RoomService {
           'hostId': playerId,
           'status': RoomStatus.lobby.name,
           'selectedGameId': selectedGame.id,
+          'languageCode': language.code,
           'settings': {
             GameSettingKeys.deckId: defaultDeckId,
             GameSettingKeys.categoryId: WordCategories.defaultCategoryId,
+            GameSettingKeys.languageCode: language.code,
             GameSettingKeys.durationSeconds: defaultDurationSeconds,
+            GameSettingKeys.codenamesHinterSeconds: 60,
+            GameSettingKeys.codenamesGuesserSeconds: 90,
           },
           'deckId': defaultDeckId,
           'categoryId': WordCategories.defaultCategoryId,
@@ -205,7 +215,42 @@ class RoomService {
         updates['settings.${GameSettingKeys.categoryId}'] =
             WordCategories.defaultCategoryId;
       }
+      for (final setting in game.settings) {
+        final defaultValue = setting.defaultValue;
+        if (setting.type == GameSettingType.timer && defaultValue != null) {
+          updates['settings.${setting.key}'] = defaultValue;
+        }
+      }
       transaction.update(roomRef, updates);
+    });
+  }
+
+  Future<void> updateLanguage({
+    required String roomCode,
+    required String languageCode,
+  }) async {
+    final playerId = await ensurePlayerId();
+    final language = GameLanguage.byCode(languageCode);
+    final roomRef = _roomRef(roomCode);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists) {
+        throw StateError('Room no longer exists.');
+      }
+
+      final room = GameRoom.fromSnapshot(snapshot);
+      if (room.hostId != playerId) {
+        throw StateError('Only the host can choose the language.');
+      }
+      if (room.status != RoomStatus.lobby) {
+        throw StateError('Language can only be changed in the lobby.');
+      }
+
+      transaction.update(roomRef, {
+        'languageCode': language.code,
+        'settings.${GameSettingKeys.languageCode}': language.code,
+      });
     });
   }
 
@@ -377,6 +422,50 @@ class RoomService {
     });
   }
 
+  Future<void> updateTimerSetting({
+    required String roomCode,
+    required String settingKey,
+    required int durationSeconds,
+  }) async {
+    final playerId = await ensurePlayerId();
+    final roomRef = _roomRef(roomCode);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists) {
+        throw StateError('Room no longer exists.');
+      }
+
+      final room = GameRoom.fromSnapshot(snapshot);
+      if (room.hostId != playerId) {
+        throw StateError('Only the host can change timers.');
+      }
+      if (room.status != RoomStatus.lobby) {
+        throw StateError('Timers can only be changed in the lobby.');
+      }
+
+      final setting = room.selectedGame.settings.firstWhere(
+        (setting) => setting.key == settingKey,
+        orElse: () => throw StateError('That timer is not available.'),
+      );
+      if (setting.type != GameSettingType.timer) {
+        throw StateError('That setting is not a timer.');
+      }
+      if (durationSeconds == 0 && !setting.allowsOff) {
+        throw StateError('${setting.label} cannot be turned off.');
+      }
+      final cleanDuration = durationSeconds == 0
+          ? 0
+          : _cleanDurationSeconds(durationSeconds);
+
+      transaction.update(roomRef, {
+        if (settingKey == GameSettingKeys.durationSeconds)
+          'durationSeconds': cleanDuration,
+        'settings.$settingKey': cleanDuration,
+      });
+    });
+  }
+
   Future<void> startGame(String roomCode) async {
     final playerId = await ensurePlayerId();
     final roomRef = _roomRef(roomCode);
@@ -409,7 +498,8 @@ class RoomService {
       }
 
       final now = DateTime.now();
-      final durationSeconds = selectedGame.usesTimer
+      final durationSeconds =
+          selectedGame.usesTimer && selectedGame.id != GameIds.codenames
           ? _cleanDurationSeconds(room.durationSeconds)
           : 0;
 
@@ -587,6 +677,214 @@ class RoomService {
     });
   }
 
+  Future<void> submitCodenamesClue({
+    required String roomCode,
+    required String clue,
+    required int number,
+  }) async {
+    final playerId = await ensurePlayerId();
+    final cleanClue = clue.trim();
+    if (cleanClue.isEmpty) {
+      throw StateError('Add a clue.');
+    }
+    if (number != GameSession.codenamesInfinityClueNumber &&
+        (number < 0 || number > 9)) {
+      throw StateError('Clue number must be 0, 1-9, or infinity.');
+    }
+
+    final roomRef = _roomRef(roomCode);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists) {
+        throw StateError('Room no longer exists.');
+      }
+
+      final room = GameRoom.fromSnapshot(snapshot);
+      _ensureCodenamesGame(room);
+      if (room.session.codenamesPhase != CodenamesPhase.clue) {
+        throw StateError('Clue phase is not active.');
+      }
+      if (!_isCurrentCodenamesHinter(room, playerId)) {
+        throw StateError('Only the current team hinter can give a clue.');
+      }
+
+      transaction.update(roomRef, {
+        'session.codenamesClue': cleanClue,
+        'session.codenamesClueNumber': number,
+        'session.codenamesGuessesTaken': 0,
+        'session.codenamesPhase': CodenamesPhase.guessing.name,
+        'session.codenamesTurnEndsAt': _codenamesTurnEndsAt(
+          DateTime.now(),
+          room.session.codenamesGuesserSeconds,
+        ),
+      });
+    });
+  }
+
+  Future<void> revealCodenamesCard({
+    required String roomCode,
+    required int cardIndex,
+  }) async {
+    final playerId = await ensurePlayerId();
+    final roomRef = _roomRef(roomCode);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists) {
+        throw StateError('Room no longer exists.');
+      }
+
+      final room = GameRoom.fromSnapshot(snapshot);
+      _ensureCodenamesGame(room);
+      final session = room.session;
+      if (session.codenamesPhase != CodenamesPhase.guessing) {
+        throw StateError('Guessing phase is not active.');
+      }
+      if (!_isCurrentCodenamesGuesser(room, playerId)) {
+        throw StateError('Only the current team guesser can reveal cards.');
+      }
+      if (cardIndex < 0 || cardIndex >= session.codenamesCards.length) {
+        throw StateError('That card is not on the board.');
+      }
+      if (session.codenamesRemainingGuesses <= 0) {
+        throw StateError('No guesses left.');
+      }
+
+      final card = session.codenamesCards[cardIndex];
+      if (card.revealed) {
+        throw StateError('That card is already revealed.');
+      }
+
+      final cards = [...session.codenamesCards];
+      cards[cardIndex] = card.copyWith(revealed: true);
+      var redRemaining = session.codenamesRedRemaining;
+      var blueRemaining = session.codenamesBlueRemaining;
+      var phase = CodenamesPhase.guessing;
+      var currentTeam = session.codenamesCurrentTeam;
+      CodenamesTeam? winner;
+      final guessedOwnCard = _cardBelongsToTeam(card.type, currentTeam);
+      final guessesTaken = session.codenamesGuessesTaken + 1;
+
+      switch (card.type) {
+        case CodenamesCardType.red:
+          redRemaining--;
+          if (redRemaining <= 0) {
+            winner = CodenamesTeam.red;
+          }
+        case CodenamesCardType.blue:
+          blueRemaining--;
+          if (blueRemaining <= 0) {
+            winner = CodenamesTeam.blue;
+          }
+        case CodenamesCardType.black:
+          winner = _otherCodenamesTeam(currentTeam);
+        case CodenamesCardType.neutral:
+          break;
+      }
+
+      if (winner != null) {
+        phase = CodenamesPhase.complete;
+      } else if (!guessedOwnCard ||
+          (!session.codenamesHasUnlimitedGuesses &&
+              guessesTaken >= session.codenamesMaxGuesses)) {
+        phase = CodenamesPhase.clue;
+        currentTeam = _otherCodenamesTeam(currentTeam);
+      }
+
+      transaction.update(roomRef, {
+        'session.codenamesCards': cards.map((card) => card.toMap()).toList(),
+        'session.codenamesRedRemaining': redRemaining,
+        'session.codenamesBlueRemaining': blueRemaining,
+        'session.codenamesGuessesTaken': guessesTaken,
+        'session.codenamesPhase': phase.name,
+        'session.codenamesCurrentTeam': currentTeam.name,
+        if (phase == CodenamesPhase.clue) ...{
+          'session.codenamesClue': '',
+          'session.codenamesClueNumber': 0,
+          'session.codenamesGuessesTaken': 0,
+          'session.codenamesTurnEndsAt': _codenamesTurnEndsAt(
+            DateTime.now(),
+            session.codenamesHinterSeconds,
+          ),
+        },
+        if (phase == CodenamesPhase.complete)
+          'session.codenamesTurnEndsAt': null,
+        if (winner != null) 'session.codenamesWinner': winner.name,
+      });
+    });
+  }
+
+  Future<void> endCodenamesTurn(String roomCode) async {
+    final playerId = await ensurePlayerId();
+    final roomRef = _roomRef(roomCode);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists) {
+        throw StateError('Room no longer exists.');
+      }
+
+      final room = GameRoom.fromSnapshot(snapshot);
+      _ensureCodenamesGame(room);
+      if (room.session.codenamesPhase != CodenamesPhase.guessing) {
+        throw StateError('Only an active guessing turn can be ended.');
+      }
+      if (room.hostId != playerId &&
+          !_isCurrentCodenamesGuesser(room, playerId) &&
+          !_isCurrentCodenamesHinter(room, playerId)) {
+        throw StateError('Only the current team or host can end the turn.');
+      }
+
+      transaction.update(roomRef, {
+        'session.codenamesCurrentTeam': _otherCodenamesTeam(
+          room.session.codenamesCurrentTeam,
+        ).name,
+        'session.codenamesPhase': CodenamesPhase.clue.name,
+        'session.codenamesClue': '',
+        'session.codenamesClueNumber': 0,
+        'session.codenamesGuessesTaken': 0,
+        'session.codenamesTurnEndsAt': _codenamesTurnEndsAt(
+          DateTime.now(),
+          room.session.codenamesHinterSeconds,
+        ),
+      });
+    });
+  }
+
+  Future<void> expireCodenamesTurn(String roomCode) async {
+    final roomRef = _roomRef(roomCode);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(roomRef);
+      if (!snapshot.exists) {
+        throw StateError('Room no longer exists.');
+      }
+
+      final room = GameRoom.fromSnapshot(snapshot);
+      _ensureCodenamesGame(room);
+      final session = room.session;
+      final turnEndsAt = session.codenamesTurnEndsAt;
+      if (session.codenamesPhase == CodenamesPhase.complete ||
+          turnEndsAt == null ||
+          turnEndsAt.isAfter(DateTime.now())) {
+        return;
+      }
+
+      final nextTeam = _otherCodenamesTeam(session.codenamesCurrentTeam);
+      transaction.update(roomRef, {
+        'session.codenamesCurrentTeam': nextTeam.name,
+        'session.codenamesPhase': CodenamesPhase.clue.name,
+        'session.codenamesClue': '',
+        'session.codenamesClueNumber': 0,
+        'session.codenamesGuessesTaken': 0,
+        'session.codenamesTurnEndsAt': _codenamesTurnEndsAt(
+          DateTime.now(),
+          session.codenamesHinterSeconds,
+        ),
+      });
+    });
+  }
+
   Future<void> returnToLobby(String roomCode) async {
     final playerId = await ensurePlayerId();
     final roomRef = _roomRef(roomCode);
@@ -729,6 +1027,53 @@ class RoomService {
     if (room.hostId != playerId) {
       throw StateError('Only the host can control this phase.');
     }
+  }
+
+  void _ensureCodenamesGame(GameRoom room) {
+    if (room.status != RoomStatus.inGame ||
+        room.selectedGame.id != GameIds.codenames) {
+      throw StateError('Codenames is not active.');
+    }
+  }
+
+  bool _isCurrentCodenamesHinter(GameRoom room, String playerId) {
+    final player = room.playerById(playerId);
+    return player?.roleId ==
+        _codenamesHinterRoleId(room.session.codenamesCurrentTeam);
+  }
+
+  bool _isCurrentCodenamesGuesser(GameRoom room, String playerId) {
+    final player = room.playerById(playerId);
+    return player?.roleId ==
+        _codenamesGuesserRoleId(room.session.codenamesCurrentTeam);
+  }
+
+  String _codenamesHinterRoleId(CodenamesTeam team) {
+    return team == CodenamesTeam.red
+        ? GameRoleIds.redHinter
+        : GameRoleIds.blueHinter;
+  }
+
+  String _codenamesGuesserRoleId(CodenamesTeam team) {
+    return team == CodenamesTeam.red
+        ? GameRoleIds.redGuesser
+        : GameRoleIds.blueGuesser;
+  }
+
+  CodenamesTeam _otherCodenamesTeam(CodenamesTeam team) {
+    return team == CodenamesTeam.red ? CodenamesTeam.blue : CodenamesTeam.red;
+  }
+
+  bool _cardBelongsToTeam(CodenamesCardType cardType, CodenamesTeam team) {
+    return (team == CodenamesTeam.red && cardType == CodenamesCardType.red) ||
+        (team == CodenamesTeam.blue && cardType == CodenamesCardType.blue);
+  }
+
+  Timestamp? _codenamesTurnEndsAt(DateTime now, int seconds) {
+    if (seconds <= 0) {
+      return null;
+    }
+    return Timestamp.fromDate(now.add(Duration(seconds: seconds)));
   }
 
   Future<T> _withTimeout<T>(Future<T> future, String message) {

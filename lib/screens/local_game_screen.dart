@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../localization/app_language.dart';
 import '../theme/app_theme.dart';
 
 class LocalGameScreen extends StatefulWidget {
@@ -57,7 +58,7 @@ class _LocalGameScreenState extends State<LocalGameScreen> {
 
   String get _currentWord {
     if (widget.words.isEmpty) {
-      return 'No words';
+      return AppCopy.of(context).noWords;
     }
     return widget.words[_wordIndex];
   }
@@ -111,8 +112,9 @@ class _LocalGameScreenState extends State<LocalGameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     return GameShell(
-      appBar: AppBar(title: const Text('Local game')),
+      appBar: AppBar(title: Text(copy.localGame)),
       maxWidth: 620,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -130,13 +132,13 @@ class _LocalGameScreenState extends State<LocalGameScreen> {
             FilledButton.icon(
               onPressed: _playAgain,
               icon: const Icon(Icons.refresh),
-              label: const Text('Play again'),
+              label: Text(copy.playAgain),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => Navigator.of(context).pop(),
               icon: const Icon(Icons.tune),
-              label: const Text('Edit deck'),
+              label: Text(copy.editDeck),
             ),
           ] else
             Row(
@@ -145,7 +147,7 @@ class _LocalGameScreenState extends State<LocalGameScreen> {
                   child: FilledButton.icon(
                     onPressed: _markSuccess,
                     icon: const Icon(Icons.check),
-                    label: const Text('Success'),
+                    label: Text(copy.success),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -153,7 +155,7 @@ class _LocalGameScreenState extends State<LocalGameScreen> {
                   child: OutlinedButton.icon(
                     onPressed: _markPass,
                     icon: const Icon(Icons.skip_next),
-                    label: const Text('Pass'),
+                    label: Text(copy.pass),
                   ),
                 ),
               ],
@@ -182,6 +184,7 @@ class _LocalScoreboard extends StatelessWidget {
     final minutes = remainingSeconds ~/ 60;
     final seconds = remainingSeconds % 60;
     final timerText = '$minutes:${seconds.toString().padLeft(2, '0')}';
+    final copy = AppCopy.of(context);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -207,7 +210,7 @@ class _LocalScoreboard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                isGameOver ? 'Round complete' : 'Local round',
+                isGameOver ? copy.roundComplete : copy.localRound,
                 style: Theme.of(
                   context,
                 ).textTheme.labelLarge?.copyWith(color: Colors.white),
@@ -218,9 +221,9 @@ class _LocalScoreboard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _LocalMetric(label: 'Time', value: timerText),
-              _LocalMetric(label: 'Score', value: '$score'),
-              _LocalMetric(label: 'Passes', value: '$passes'),
+              _LocalMetric(label: copy.time, value: timerText),
+              _LocalMetric(label: copy.score, value: '$score'),
+              _LocalMetric(label: copy.passes, value: '$passes'),
             ],
           ),
         ],
@@ -237,6 +240,7 @@ class _LocalWordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -262,14 +266,14 @@ class _LocalWordCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                isGameOver ? 'Final score' : 'Current word',
+                isGameOver ? copy.finalScore : copy.currentWord,
                 style: Theme.of(context).textTheme.labelLarge,
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            isGameOver ? 'Time is up' : word,
+            isGameOver ? copy.timeIsUp : word,
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
               color: AppColors.ink,
               fontSize: 38,

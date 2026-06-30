@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../localization/app_language.dart';
 import '../models/game_definition.dart';
 import '../services/room_service.dart';
 import '../theme/app_theme.dart';
 import 'lobby_screen.dart';
 
 class GameDashboardScreen extends StatefulWidget {
-  const GameDashboardScreen({super.key, required this.playerName});
+  const GameDashboardScreen({
+    super.key,
+    required this.playerName,
+    this.initialLanguageCode = GameLanguage.defaultCode,
+  });
 
   final String playerName;
+  final String initialLanguageCode;
 
   @override
   State<GameDashboardScreen> createState() => _GameDashboardScreenState();
@@ -24,6 +30,7 @@ class _GameDashboardScreenState extends State<GameDashboardScreen> {
       final roomCode = await _roomService.createRoom(
         widget.playerName,
         selectedGameId: game.id,
+        languageCode: widget.initialLanguageCode,
       );
       if (!mounted) {
         return;
@@ -46,25 +53,26 @@ class _GameDashboardScreenState extends State<GameDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final copy = AppCopy.of(context);
     return GameShell(
-      appBar: AppBar(title: const Text('Choose game')),
+      appBar: AppBar(title: Text(copy.chooseGame)),
       maxWidth: 720,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AccentPill(
+          AccentPill(
             icon: Icons.dashboard_customize,
-            label: 'Game dashboard',
+            label: copy.gameDashboard,
             color: AppColors.gold,
           ),
           const SizedBox(height: 16),
           Text(
-            'Pick the first game',
+            copy.pickFirstGame,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
           Text(
-            'You can still change the game later from the lobby.',
+            copy.changeGameLater,
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 22),
@@ -115,6 +123,7 @@ class _DashboardGameTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+    final copy = AppCopy.of(context);
 
     return InkWell(
       onTap: isDisabled ? null : onTap,
@@ -148,12 +157,12 @@ class _DashboardGameTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    game.name,
+                    copy.gameName(game.id),
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    game.shortDescription,
+                    copy.gameShortDescription(game.id),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 12),
@@ -165,7 +174,7 @@ class _DashboardGameTile extends StatelessWidget {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.add),
-                    label: Text(isCreating ? 'Creating room...' : 'Start room'),
+                    label: Text(isCreating ? copy.creatingRoom : copy.startRoom),
                   ),
                 ],
               ),

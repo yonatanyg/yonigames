@@ -95,7 +95,7 @@ class GameDefinition {
   }
 }
 
-enum GameRoleStrategy { oneGuesser, oneOutOfTheLoop }
+enum GameRoleStrategy { none, oneGuesser, oneOutOfTheLoop }
 
 enum GameWordSource { deck, category, none }
 
@@ -108,7 +108,10 @@ class GameSettingKeys {
 
   static const deckId = 'deckId';
   static const categoryId = 'categoryId';
+  static const languageCode = 'languageCode';
   static const durationSeconds = 'durationSeconds';
+  static const codenamesHinterSeconds = 'codenamesHinterSeconds';
+  static const codenamesGuesserSeconds = 'codenamesGuesserSeconds';
 }
 
 class GameSettingDefinition {
@@ -116,11 +119,15 @@ class GameSettingDefinition {
     required this.key,
     required this.label,
     required this.type,
+    this.defaultValue,
+    this.allowsOff = false,
   });
 
   final String key;
   final String label;
   final GameSettingType type;
+  final int? defaultValue;
+  final bool allowsOff;
 }
 
 class GamePlayerRole {
@@ -153,6 +160,10 @@ class GameRoleIds {
   static const player = 'player';
   static const teamOne = 'team_one';
   static const teamTwo = 'team_two';
+  static const redHinter = 'red_hinter';
+  static const redGuesser = 'red_guesser';
+  static const blueHinter = 'blue_hinter';
+  static const blueGuesser = 'blue_guesser';
 }
 
 class GameIds {
@@ -161,6 +172,7 @@ class GameIds {
   static const buildQuestion = 'build_a_question';
   static const outOfTheLoop = 'out_of_the_loop';
   static const password = 'password';
+  static const codenames = 'codenames';
 }
 
 class GameCatalog {
@@ -282,6 +294,72 @@ class GameCatalog {
           key: GameSettingKeys.deckId,
           label: 'Deck',
           type: GameSettingType.deck,
+        ),
+      ],
+    ),
+    GameDefinition(
+      id: GameIds.codenames,
+      name: 'Codenames',
+      shortDescription: 'Two teams race through a secret word grid.',
+      lobbyDescription:
+          'Hinters see the key. Guessers reveal cards from one-word clues.',
+      assetPath: 'assets/game_tiles/codenames.png',
+      minPlayers: 4,
+      wordRoleLabel: 'Board key',
+      hiddenRoleLabel: 'Guess from clues',
+      hiddenWordMessage: 'Wait for your hinter to give a clue.',
+      actionLabel: 'Give one-word clues and avoid the black card.',
+      roleStrategy: GameRoleStrategy.none,
+      usesScore: false,
+      wordSource: GameWordSource.none,
+      playerRoles: [
+        GamePlayerRole(
+          id: GameRoleIds.redHinter,
+          name: 'Red Hinter',
+          description: 'Sees the board key and gives clues for red.',
+          colorValue: 0xFFE84A5F,
+          minPlayers: 1,
+          maxPlayers: 1,
+        ),
+        GamePlayerRole(
+          id: GameRoleIds.redGuesser,
+          name: 'Red Guesser',
+          description: 'Reveals cards for the red team.',
+          colorValue: 0xFFFF6B5A,
+          minPlayers: 1,
+          maxPlayers: 1,
+        ),
+        GamePlayerRole(
+          id: GameRoleIds.blueHinter,
+          name: 'Blue Hinter',
+          description: 'Sees the board key and gives clues for blue.',
+          colorValue: 0xFF38BDF8,
+          minPlayers: 1,
+          maxPlayers: 1,
+        ),
+        GamePlayerRole(
+          id: GameRoleIds.blueGuesser,
+          name: 'Blue Guesser',
+          description: 'Reveals cards for the blue team.',
+          colorValue: 0xFF7CC9E8,
+          minPlayers: 1,
+          maxPlayers: 1,
+        ),
+      ],
+      settings: [
+        GameSettingDefinition(
+          key: GameSettingKeys.codenamesHinterSeconds,
+          label: 'Hinter timer',
+          type: GameSettingType.timer,
+          defaultValue: 60,
+          allowsOff: true,
+        ),
+        GameSettingDefinition(
+          key: GameSettingKeys.codenamesGuesserSeconds,
+          label: 'Guesser timer',
+          type: GameSettingType.timer,
+          defaultValue: 90,
+          allowsOff: true,
         ),
       ],
     ),

@@ -35,8 +35,22 @@ YoniGames treats each game as a catalog entry plus optional reusable runtime beh
 - Build a Question: at least one `Hinter` and exactly one `Guesser`. Round focus prefers players who chose `Guesser`.
 - Out of the Loop: at least three `Player` seats because the hidden out-of-loop player is chosen by the round strategy.
 - Password: at least one player on `Team 1` and one player on `Team 2`.
+- Codenames: one `Red Hinter`, one `Red Guesser`, one `Blue Hinter`, and one `Blue Guesser`.
 
 When a player joins, `RoomService` places them into the first role that helps satisfy the selected game's start requirements. The host can also randomize role assignments in the lobby.
+
+## Codenames Flow
+
+Codenames uses a 25-card board from one shared word pile. A random first team receives 9 team words; the other team receives 8. The board also has 7 neutral cards and 1 black card.
+
+- Hinters see the full board key and submit a one-word clue plus a number.
+- The current team's guesser can reveal up to `number + 1` cards.
+- Clue numbers `0` and `∞` allow unlimited guesses until a mistake, manual turn end, or timer expiry.
+- Codenames has separate lobby settings for hinter-turn and guesser-turn timers. Each can be turned off.
+- Revealing the team's own card keeps the turn going until guesses run out.
+- Revealing a neutral card or the other team's card ends the turn.
+- Revealing the black card immediately awards the win to the other team.
+- Revealing all of a team's cards wins the game for that team.
 
 ## Out of the Loop Flow
 
