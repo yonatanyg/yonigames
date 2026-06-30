@@ -13,16 +13,31 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  var _themeOption = AppTheme.options.first;
+
+  void _setTheme(AppThemeOption option) {
+    setState(() => _themeOption = option);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'YoniGames',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      home: const HomeScreen(),
+    return AppThemeScope(
+      option: _themeOption,
+      onThemeChanged: _setTheme,
+      child: MaterialApp(
+        title: 'YoniGames',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.theme(_themeOption),
+        home: const HomeScreen(),
+      ),
     );
   }
 }

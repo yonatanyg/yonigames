@@ -114,17 +114,21 @@ class _DashboardGameTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+
     return InkWell(
       onTap: isDisabled ? null : onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.paper.withValues(alpha: 0.95),
+          color: palette.paper.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.ink.withValues(alpha: 0.08)),
+          border: Border.all(color: palette.ink.withValues(alpha: 0.1)),
           boxShadow: [
             BoxShadow(
-              color: AppColors.ink.withValues(alpha: 0.1),
+              color: Colors.black.withValues(
+                alpha: palette.brightness == Brightness.dark ? 0.24 : 0.1,
+              ),
               blurRadius: 20,
               offset: const Offset(0, 12),
             ),
